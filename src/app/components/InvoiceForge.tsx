@@ -148,6 +148,7 @@ export function InvoiceForge() {
   const [invoice, setInvoice] = useState<Invoice>(() => init.invoice);
   const [status, setStatus] = useState<string>(() => init.status);
   const previewRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const totals = useMemo(() => {
     const subtotal = round2(
@@ -218,6 +219,36 @@ export function InvoiceForge() {
     setStatus('Copied share link to clipboard.');
   }
 
+  function exportJson() {
+    const json = JSON.stringify(invoice, null, 2);
+    const name = `invoice-${invoice.invoiceNumber || 'draft'}.json`;
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(url);
+    setStatus(`Exported ${name}.`);
+  }
+
+  function importJson(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const parsed = safeJsonParse<Partial<Invoice>>(reader.result as string);
+      if (!parsed) {
+        setStatus('Invalid JSON file.');
+        return;
+      }
+      setInvoice(normalizeInvoice(parsed));
+      setStatus(`Imported invoice from ${file.name}.`);
+    };
+    reader.readAsText(file);
+    e.target.value = ''; // allow re-importing the same file
+  }
+
   function printInvoice() {
     // Make sure preview is visible in print.
     previewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -241,6 +272,19 @@ export function InvoiceForge() {
           <button className="btn" onClick={saveLocal} type="button">
             Save
           </button>
+          <button className="btn" onClick={exportJson} type="button">
+            Export JSON
+          </button>
+          <button className="btn" onClick={() => fileInputRef.current?.click()} type="button">
+            Import JSON
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            style={{ display: 'none' }}
+            onChange={importJson}
+          />
           <button className="btn primary" onClick={printInvoice} type="button">
             Print / Export PDF
           </button>
